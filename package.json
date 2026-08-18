@@ -1,0 +1,19 @@
+{
+  "name": "indus-wok-inventory",
+  "version": "1.0.0",
+  "description": "Inventory management system for Indus Wok restaurant — Node.js + Firebase Firestore",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "seed": "node scripts/seed.js"
+  },
+  "keywords": ["inventory", "restaurant", "firebase", "firestore"],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.3.0"
+  },
+  "engines": { "node": ">=18" }
+}

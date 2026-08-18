@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Indus Wok — Inventory</title>
+<style>
+  :root {
+    --bg: #16100b; --panel: #241811; --panel2: #2d1e13; --border: #4a3421;
+    --text: #f5e6d3; --muted: #b08968; --accent: #ff9d4d; --green: #4cc07a; --red: #e5604c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+  header h1 { font-size: 24px; color: var(--accent); }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  #fbBadge { font-size: 12px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); }
+  #fbBadge.live { color: var(--green); border-color: var(--green); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .stat .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .stat .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+  .stat.alert .value { color: var(--red); }
+
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .toolbar input, .toolbar select {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 14px; border-radius: 10px; font-size: 14px; outline: none;
+  }
+  .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
+  .toolbar input { flex: 1; min-width: 180px; }
+  .btn { background: var(--accent); color: #241511; border: none; padding: 10px 18px; border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
+  .btn:hover { filter: brightness(1.1); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
+
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 12px 14px; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border); }
+  td { padding: 11px 14px; border-bottom: 1px solid #35251633; vertical-align: middle; }
+  tr:hover td { background: #ffffff08; }
+  td.num, th.num { text-align: right; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge.ok { background: #4cc07a22; color: var(--green); }
+  .badge.low { background: #e5604c22; color: var(--red); }
+  .itemname { font-weight: 600; }
+  .itemsub { font-size: 12px; color: var(--muted); }
+  .rowbtn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 15px; margin-left: 4px; }
+  .rowbtn:hover { border-color: var(--accent); color: var(--accent); }
+  .rowbtn.danger:hover { border-color: var(--red); color: var(--red); }
+
+  .side h2 { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; padding: 14px 16px 6px; }
+  .tx { padding: 10px 16px; border-bottom: 1px solid #35251633; font-size: 13px; }
+  .tx .d { font-weight: 700; }
+  .tx .d.in { color: var(--green); } .tx .d.out { color: var(--red); }
+  .tx .meta { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .empty { padding: 20px 16px; color: var(--muted); font-size: 13px; }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: #000a; display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; width: 420px; max-width: 100%; padding: 22px; }
+  .modal h3 { margin-bottom: 16px; color: var(--accent); }
+  .modal label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
+  .modal input, .modal select { width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 9px; font-size: 14px; outline: none; }
+  .modal input:focus { border-color: var(--accent); }
+  .modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--accent); color: var(--text); padding: 10px 20px; border-radius: 12px; font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 60; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>🍜 Indus Wok — Inventory</h1>
+      <div class="sub">Kitchen stock, live from Firebase</div>
+    </div>
+    <span id="fbBadge">checking…</span>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Items tracked</div><div class="value" id="stTotal">–</div></div>
+    <div class="stat alert"><div class="label">Low stock</div><div class="value" id="stLow">–</div></div>
+    <div class="stat"><div class="label">Stock value</div><div class="value" id="stValue">–</div></div>
+    <div class="stat"><div class="label">Categories</div><div class="value" id="stCats">–</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input id="search" placeholder="Search items or suppliers…" />
+    <select id="catFilter"><option value="">All categories</option></select>
+    <select id="stockFilter">
+      <option value="">All stock levels</option>
+      <option value="low">Low stock only</option>
+    </select>
+    <button class="btn" onclick="openItemModal()">＋ Add Item</button>
+  </div>
+
+  <div class="layout">
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th>Item</th><th>Category</th><th class="num">Qty</th><th class="num">Reorder at</th>
+          <th class="num">Value (₹)</th><th>Status</th><th class="num">Actions</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="emptyMsg" style="display:none">No items match.</div>
+    </div>
+
+    <div class="card side">
+      <h2>Recent activity</h2>
+      <div id="txList"><div class="empty">No stock movements yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit item modal -->
+<div class="overlay" id="itemOverlay">
+  <div class="modal">
+    <h3 id="itemModalTitle">Add item</h3>
+    <label>Name</label><input id="fName" placeholder="e.g. Dark Soy Sauce" />
+    <label>Category</label><input id="fCategory" list="catList" placeholder="e.g. Sauces & Condiments" />
+    <datalist id="catList"></datalist>
+    <div class="row3">
+      <div><label>Quantity</label><input id="fQuantity" type="number" min="0" step="any" value="0" /></div>
+      <div><label>Unit</label><input id="fUnit" placeholder="kg / L / pcs" /></div>
+      <div><label>Reorder at</label><input id="fReorder" type="number" min="0" step="any" value="0" /></div>
+    </div>
+    <div class="row2">
+      <div><label>Unit cost (₹)</label><input id="fCost" type="number" min="0" step="any" value="0" /></div>
+      <div><label>Supplier</label><input id="fSupplier" placeholder="optional" /></div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn" id="itemSaveBtn" onclick="saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stock adjust modal -->
+<div class="overlay" id="adjOverlay">
+  <div class="modal">
+    <h3 id="adjTitle">Adjust stock</h3>
+    <div class="row2">
+      <div><label>Amount</label><input id="adjAmount" type="number" min="0" step="any" placeholder="e.g. 5" /></div>
+      <div><label>Note</label><input id="adjNote" placeholder="e.g. weekly delivery" /></div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn" id="adjSaveBtn" onclick="saveAdjust()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let items = [];
+let editingId = null;
+let adjusting = null; // { id, direction }
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Number(n).toLocaleString('en-IN');
+
+async function api(path, opts = {}) {
+  const res = await fetch('/api' + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e.error || res.statusText);
+  }
+  return res.json();
+}
+
+async function refresh() {
+  const [its, txs, health] = await Promise.all([
+    api('/items'),
+    api('/transactions?limit=15'),
+    fetch('/health').then((r) => r.json()),
+  ]);
+  items = its;
+  renderBadge(health);
+  renderStats();
+  renderCategories();
+  renderTable();
+  renderTx(txs);
+}
+
+function renderBadge(h) {
+  const b = $('fbBadge');
+  if (h.firebase === 'connected') { b.textContent = '🔥 Firebase connected'; b.classList.add('live'); }
+  else { b.textContent = '⚠ demo mode — connect Firebase'; b.classList.remove('live'); }
+}
+
+function renderStats() {
+  $('stTotal').textContent = items.length;
+  $('stLow').textContent = items.filter((i) => i.lowStock).length;
+  $('stValue').textContent = '₹' + fmt(Math.round(items.reduce((s, i) => s + i.quantity * (i.unitCost || 0), 0)));
+  $('stCats').textContent = new Set(items.map((i) => i.category)).size;
+}
+
+function renderCategories() {
+  const cats = [...new Set(items.map((i) => i.category))].sort();
+  const sel = $('catFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' + cats.map((c) => `<option>${esc(c)}</option>`).join('');
+  sel.value = cur;
+  $('catList').innerHTML = cats.map((c) => `<option value="${esc(c)}">`).join('');
+}
+
+function renderTable() {
+  const q = $('search').value.toLowerCase();
+  const cat = $('catFilter').value;
+  const lowOnly = $('stockFilter').value === 'low';
+  const rows = items
+    .filter((i) =>
+      (!q || i.name.toLowerCase().includes(q) || (i.supplier || '').toLowerCase().includes(q)) &&
+      (!cat || i.category === cat) &&
+      (!lowOnly || i.lowStock)
+    )
+    .sort((a, b) => (b.lowStock - a.lowStock) || a.name.localeCompare(b.name));
+
+  $('emptyMsg').style.display = rows.length ? 'none' : 'block';
+  $('tbody').innerHTML = rows.map((i) => `
+    <tr>
+      <td><div class="itemname">${esc(i.name)}</div><div class="itemsub">${esc(i.supplier || '')}</div></td>
+      <td>${esc(i.category)}</td>
+      <td class="num"><b>${fmt(i.quantity)}</b> ${esc(i.unit)}</td>
+      <td class="num">${fmt(i.reorderLevel)} ${esc(i.unit)}</td>
+      <td class="num">₹${fmt(Math.round(i.quantity * (i.unitCost || 0)))}</td>
+      <td><span class="badge ${i.lowStock ? 'low' : 'ok'}">${i.lowStock ? 'LOW — reorder' : 'In stock'}</span></td>
+      <td class="num">
+        <button class="rowbtn" title="Stock in" onclick="openAdjust('${i.id}', 1)">＋</button>
+        <button class="rowbtn" title="Stock out" onclick="openAdjust('${i.id}', -1)">－</button>
+        <button class="rowbtn" title="Edit" onclick="openItemModal('${i.id}')">✎</button>
+        <button class="rowbtn danger" title="Delete" onclick="removeItem('${i.id}')">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+function renderTx(txs) {
+  if (!txs.length) return;
+  $('txList').innerHTML = txs.map((t) => `
+    <div class="tx">
+      <span class="d ${t.delta > 0 ? 'in' : 'out'}">${t.delta > 0 ? '+' : ''}${fmt(t.delta)}</span>
+      ${esc(t.itemName)} → ${fmt(t.quantityAfter)} left
+      <div class="meta">${esc(t.note || '')} ${t.at ? '· ' + new Date(t.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</div>
+    </div>`).join('');
+}
+
+// ── Item modal ──────────────────────────────────────────────
+function openItemModal(id) {
+  editingId = id || null;
+  const i = id ? items.find((x) => x.id === id) : null;
+  $('itemModalTitle').textContent = i ? 'Edit item' : 'Add item';
+  $('fName').value = i?.name || '';
+  $('fCategory').value = i?.category || '';
+  $('fQuantity').value = i?.quantity ?? 0;
+  $('fUnit').value = i?.unit || '';
+  $('fReorder').value = i?.reorderLevel ?? 0;
+  $('fCost').value = i?.unitCost ?? 0;
+  $('fSupplier').value = i?.supplier || '';
+  $('itemOverlay').classList.add('open');
+  $('fName').focus();
+}
+
+async function saveItem() {
+  const body = {
+    name: $('fName').value, category: $('fCategory').value, unit: $('fUnit').value,
+    quantity: $('fQuantity').value, reorderLevel: $('fReorder').value,
+    unitCost: $('fCost').value, supplier: $('fSupplier').value,
+  };
+  if (!body.name || !body.category || !body.unit) return toast('Name, category and unit are required');
+  try {
+    if (editingId) await api('/items/' + editingId, { method: 'PUT', body: JSON.stringify(body) });
+    else await api('/items', { method: 'POST', body: JSON.stringify(body) });
+    closeModals();
+    toast(editingId ? 'Item updated' : 'Item added');
+    refresh();
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+async function removeItem(id) {
+  const i = items.find((x) => x.id === id);
+  if (!confirm(`Delete "${i?.name}" from inventory?`)) return;
+  await api('/items/' + id, { method: 'DELETE' });
+  toast('Item deleted');
+  refresh();
+}
+
+// ── Adjust modal ────────────────────────────────────────────
+function openAdjust(id, direction) {
+  adjusting = { id, direction };
+  const i = items.find((x) => x.id === id);
+  $('adjTitle').textContent = (direction > 0 ? 'Stock in — ' : 'Stock out — ') + i.name + ` (${i.unit})`;
+  $('adjAmount').value = '';
+  $('adjNote').value = direction > 0 ? 'delivery' : 'kitchen use';
+  $('adjOverlay').classList.add('open');
+  $('adjAmount').focus();
+}
+
+async function saveAdjust() {
+  const amt = Number($('adjAmount').value);
+  if (!amt || amt <= 0) return toast('Enter a valid amount');
+  try {
+    await api(`/items/${adjusting.id}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify({ delta: amt * adjusting.direction, note: $('adjNote').value }),
+    });
+    closeModals();
+    toast('Stock updated');
+    refresh();
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+function closeModals() {
+  document.querySelectorAll('.overlay').forEach((o) => o.classList.remove('open'));
+}
+document.querySelectorAll('.overlay').forEach((o) =>
+  o.addEventListener('click', (e) => { if (e.target === o) closeModals(); })
+);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+$('search').addEventListener('input', renderTable);
+$('catFilter').addEventListener('change', renderTable);
+$('stockFilter').addEventListener('change', renderTable);
+
+refresh();
+setInterval(refresh, 30000); // auto-refresh every 30s
+</script>
+</body>
+</html>
