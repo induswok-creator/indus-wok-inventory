@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Indus Wok — Inventory</title>
+<script src="./firebase-config.js"></script>
+<style>
+  :root {
+    --bg: #16100b; --panel: #241811; --panel2: #2d1e13; --border: #4a3421;
+    --text: #f5e6d3; --muted: #b08968; --accent: #ff9d4d; --green: #4cc07a; --red: #e5604c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+  .hidden { display: none !important; }
+
+  header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+  header h1 { font-size: 24px; color: var(--accent); }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .badge-top { font-size: 12px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); }
+  .badge-top.live { color: var(--green); border-color: var(--green); }
+  .linkbtn { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; text-decoration: underline; }
+  .linkbtn:hover { color: var(--accent); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+  .stat .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .stat .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+  .stat.alert .value { color: var(--red); }
+
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .toolbar input, .toolbar select {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 14px; border-radius: 10px; font-size: 14px; outline: none;
+  }
+  .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
+  .toolbar input { flex: 1; min-width: 180px; }
+  .btn { background: var(--accent); color: #241511; border: none; padding: 10px 18px; border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
+  .btn:hover { filter: brightness(1.1); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
+  .btn.block { width: 100%; margin-top: 16px; }
+
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 12px 14px; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border); }
+  td { padding: 11px 14px; border-bottom: 1px solid #35251633; vertical-align: middle; }
+  tr:hover td { background: #ffffff08; }
+  td.num, th.num { text-align: right; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge.ok { background: #4cc07a22; color: var(--green); }
+  .badge.low { background: #e5604c22; color: var(--red); }
+  .itemname { font-weight: 600; }
+  .itemsub { font-size: 12px; color: var(--muted); }
+  .rowbtn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 15px; margin-left: 4px; }
+  .rowbtn:hover { border-color: var(--accent); color: var(--accent); }
+  .rowbtn.danger:hover { border-color: var(--red); color: var(--red); }
+
+  .side h2 { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; padding: 14px 16px 6px; }
+  .tx { padding: 10px 16px; border-bottom: 1px solid #35251633; font-size: 13px; }
+  .tx .d { font-weight: 700; }
+  .tx .d.in { color: var(--green); } .tx .d.out { color: var(--red); }
+  .tx .meta { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .empty { padding: 20px 16px; color: var(--muted); font-size: 13px; }
+
+  /* Centered screens (setup / login) */
+  .center-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .panel-box { background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 30px; width: 460px; max-width: 100%; }
+  .panel-box h1 { color: var(--accent); font-size: 22px; margin-bottom: 6px; }
+  .panel-box p { color: var(--muted); font-size: 13.5px; line-height: 1.55; margin-bottom: 8px; }
+  .panel-box label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 4px; }
+  .panel-box input, .panel-box textarea {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    padding: 11px 12px; border-radius: 9px; font-size: 14px; outline: none; font-family: inherit;
+  }
+  .panel-box textarea { font-family: ui-monospace, monospace; font-size: 12px; min-height: 130px; }
+  .panel-box input:focus, .panel-box textarea:focus { border-color: var(--accent); }
+  .divider { text-align: center; color: var(--muted); font-size: 12px; margin: 18px 0 2px; }
+  .errmsg { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: #000a; display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; width: 420px; max-width: 100%; padding: 22px; }
+  .modal h3 { margin-bottom: 16px; color: var(--accent); }
+  .modal label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
+  .modal input { width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 9px; font-size: 14px; outline: none; }
+  .modal input:focus { border-color: var(--accent); }
+  .modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .modal .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--accent); color: var(--text); padding: 10px 20px; border-radius: 12px; font-size: 14px; opacity: 0; transition: .3s; pointer-events: none; z-index: 60; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SETUP SCREEN ═══ -->
+<div id="setupScreen" class="center-screen hidden">
+  <div class="panel-box">
+    <h1>🍜 Indus Wok — Inventory</h1>
+    <p>Connect your Firebase project, or try the app in demo mode (data stays on this device).</p>
+    <label>Firebase web config (JSON from Firebase Console → Project settings → Your apps)</label>
+    <textarea id="cfgInput" placeholder='{ "apiKey": "AIza...", "authDomain": "...", "projectId": "...", ... }'></textarea>
+    <div class="errmsg" id="cfgErr"></div>
+    <button class="btn block" onclick="saveConfig()">🔥 Connect Firebase</button>
+    <div class="divider">— or —</div>
+    <button class="btn ghost block" onclick="startDemo()">Try demo mode (no account needed)</button>
+  </div>
+</div>
+
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div id="authScreen" class="center-screen hidden">
+  <div class="panel-box">
+    <h1>🍜 Indus Wok — Staff Login</h1>
+    <p>Sign in with your staff account. Accounts are created in Firebase Console → Authentication → Users.</p>
+    <label>Email</label><input id="loginEmail" type="email" autocomplete="username" />
+    <label>Password</label><input id="loginPass" type="password" autocomplete="current-password" />
+    <div class="errmsg" id="loginErr"></div>
+    <button class="btn block" onclick="doLogin()">Sign in</button>
+    <div class="divider"><button class="linkbtn" onclick="resetConnection()">Use a different Firebase project</button></div>
+  </div>
+</div>
+
+<!-- ═══ DASHBOARD ═══ -->
+<div id="appScreen" class="wrap hidden">
+  <header>
+    <div>
+      <h1>🍜 Indus Wok — Inventory</h1>
+      <div class="sub" id="subLine">Kitchen stock</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="badge-top" id="modeBadge">…</span>
+      <button class="linkbtn" id="signOutBtn" onclick="doSignOut()">sign out</button>
+    </div>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Items tracked</div><div class="value" id="stTotal">–</div></div>
+    <div class="stat alert"><div class="label">Low stock</div><div class="value" id="stLow">–</div></div>
+    <div class="stat"><div class="label">Stock value</div><div class="value" id="stValue">–</div></div>
+    <div class="stat"><div class="label">Categories</div><div class="value" id="stCats">–</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input id="search" placeholder="Search items or suppliers…" />
+    <select id="catFilter"><option value="">All categories</option></select>
+    <select id="stockFilter">
+      <option value="">All stock levels</option>
+      <option value="low">Low stock only</option>
+    </select>
+    <button class="btn" onclick="openItemModal()">＋ Add Item</button>
+  </div>
+
+  <div class="layout">
+    <div class="card">
+      <table>
+        <thead><tr>
+          <th>Item</th><th>Category</th><th class="num">Qty</th><th class="num">Reorder at</th>
+          <th class="num">Value (₹)</th><th>Status</th><th class="num">Actions</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty hidden" id="emptyMsg">No items match.</div>
+    </div>
+
+    <div class="card side">
+      <h2>Recent activity</h2>
+      <div id="txList"><div class="empty">No stock movements yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit item modal -->
+<div class="overlay" id="itemOverlay">
+  <div class="modal">
+    <h3 id="itemModalTitle">Add item</h3>
+    <label>Name</label><input id="fName" placeholder="e.g. Dark Soy Sauce" />
+    <label>Category</label><input id="fCategory" list="catList" placeholder="e.g. Sauces & Condiments" />
+    <datalist id="catList"></datalist>
+    <div class="row3">
+      <div><label>Quantity</label><input id="fQuantity" type="number" min="0" step="any" value="0" /></div>
+      <div><label>Unit</label><input id="fUnit" placeholder="kg / L / pcs" /></div>
+      <div><label>Reorder at</label><input id="fReorder" type="number" min="0" step="any" value="0" /></div>
+    </div>
+    <div class="row2">
+      <div><label>Unit cost (₹)</label><input id="fCost" type="number" min="0" step="any" value="0" /></div>
+      <div><label>Supplier</label><input id="fSupplier" placeholder="optional" /></div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn" onclick="saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stock adjust modal -->
+<div class="overlay" id="adjOverlay">
+  <div class="modal">
+    <h3 id="adjTitle">Adjust stock</h3>
+    <div class="row2">
+      <div><label>Amount</label><input id="adjAmount" type="number" min="0" step="any" placeholder="e.g. 5" /></div>
+      <div><label>Note</label><input id="adjNote" placeholder="e.g. weekly delivery" /></div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" onclick="closeModals()">Cancel</button>
+      <button class="btn" onclick="saveAdjust()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   Indus Wok Inventory — static app for GitHub Pages
+   Two backends: Firebase Firestore (via Web SDK) or local demo mode.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const SAMPLE = [
+  { name: 'Basmati Rice', category: 'Grains & Noodles', unit: 'kg', quantity: 25, reorderLevel: 10, unitCost: 90, supplier: 'Sharma Traders' },
+  { name: 'Hakka Noodles', category: 'Grains & Noodles', unit: 'kg', quantity: 12, reorderLevel: 6, unitCost: 80, supplier: 'Sharma Traders' },
+  { name: 'Paneer', category: 'Dairy', unit: 'kg', quantity: 6, reorderLevel: 4, unitCost: 320, supplier: 'Amul Distributor' },
+  { name: 'Butter', category: 'Dairy', unit: 'kg', quantity: 3, reorderLevel: 2, unitCost: 480, supplier: 'Amul Distributor' },
+  { name: 'Chicken (boneless)', category: 'Meat & Poultry', unit: 'kg', quantity: 8, reorderLevel: 5, unitCost: 240, supplier: 'Fresh Farms Andheri' },
+  { name: 'Soy Sauce', category: 'Sauces & Condiments', unit: 'L', quantity: 4, reorderLevel: 3, unitCost: 150, supplier: 'Wok Mart' },
+  { name: 'Schezwan Sauce', category: 'Sauces & Condiments', unit: 'kg', quantity: 2, reorderLevel: 2, unitCost: 180, supplier: 'Wok Mart' },
+  { name: 'Tomato Ketchup', category: 'Sauces & Condiments', unit: 'kg', quantity: 5, reorderLevel: 3, unitCost: 110, supplier: 'Wok Mart' },
+  { name: 'Refined Oil', category: 'Oils', unit: 'L', quantity: 18, reorderLevel: 10, unitCost: 130, supplier: 'Sharma Traders' },
+  { name: 'Garlic', category: 'Vegetables', unit: 'kg', quantity: 5, reorderLevel: 2, unitCost: 160, supplier: 'APMC Vashi' },
+  { name: 'Ginger', category: 'Vegetables', unit: 'kg', quantity: 3, reorderLevel: 2, unitCost: 140, supplier: 'APMC Vashi' },
+  { name: 'Spring Onion', category: 'Vegetables', unit: 'kg', quantity: 2, reorderLevel: 3, unitCost: 60, supplier: 'APMC Vashi' },
+  { name: 'Capsicum', category: 'Vegetables', unit: 'kg', quantity: 4, reorderLevel: 3, unitCost: 80, supplier: 'APMC Vashi' },
+  { name: 'Cornflour', category: 'Grains & Noodles', unit: 'kg', quantity: 7, reorderLevel: 3, unitCost: 70, supplier: 'Sharma Traders' },
+  { name: 'Delivery Boxes', category: 'Packaging', unit: 'pcs', quantity: 140, reorderLevel: 100, unitCost: 12, supplier: 'PackWell Mumbai' },
+];
+
+let mode = null;            // 'demo' | 'firebase'
+let items = [];
+let txs = [];
+let editingId = null;
+let adjusting = null;
+let fb = null;              // { app, auth, db, fns... } when in firebase mode
+let unsubItems = null, unsubTx = null;
+
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => Number(n).toLocaleString('en-IN');
+const round3 = (n) => Math.round(n * 1000) / 1000;
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function show(screen) {
+  ['setupScreen', 'authScreen', 'appScreen'].forEach((s) => $(s).classList.toggle('hidden', s !== screen));
+}
+
+/* ── Boot ─────────────────────────────────────────────────────────── */
+(function boot() {
+  let cfg = window.FIREBASE_CONFIG;
+  if (!cfg) {
+    try { cfg = JSON.parse(localStorage.getItem('iw_fbconfig') || 'null'); } catch {}
+  }
+  if (cfg) startFirebase(cfg);
+  else if (localStorage.getItem('iw_demo') === '1') startDemo();
+  else show('setupScreen');
+})();
+
+function saveConfig() {
+  let cfg;
+  const raw = $('cfgInput').value.trim();
+  try {
+    // tolerate JS-style object (unquoted keys) by eval-ing in a sandboxless-but-local way
+    cfg = raw.startsWith('{') ? Function('"use strict"; return (' + raw + ')')() : null;
+  } catch { cfg = null; }
+  if (!cfg || !cfg.apiKey || !cfg.projectId) {
+    $('cfgErr').textContent = 'That doesn\'t look like a Firebase config — it needs apiKey and projectId.';
+    return;
+  }
+  localStorage.setItem('iw_fbconfig', JSON.stringify(cfg));
+  localStorage.removeItem('iw_demo');
+  startFirebase(cfg);
+}
+
+function resetConnection() {
+  localStorage.removeItem('iw_fbconfig');
+  localStorage.removeItem('iw_demo');
+  location.reload();
+}
+
+/* ── Firebase mode ────────────────────────────────────────────────── */
+async function startFirebase(cfg) {
+  try {
+    const V = '10.12.4';
+    const [appM, authM, fsM] = await Promise.all([
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`),
+    ]);
+    const app = appM.initializeApp(cfg);
+    fb = {
+      auth: authM.getAuth(app),
+      db: fsM.getFirestore(app),
+      ...authM, ...fsM,
+    };
+    mode = 'firebase';
+    fb.onAuthStateChanged(fb.auth, (user) => {
+      if (user) {
+        show('appScreen');
+        $('modeBadge').textContent = '🔥 Firebase connected';
+        $('modeBadge').classList.add('live');
+        $('subLine').textContent = user.email;
+        subscribe();
+      } else {
+        show('authScreen');
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    localStorage.removeItem('iw_fbconfig');
+    show('setupScreen');
+    $('cfgErr').textContent = 'Could not connect: ' + err.message;
+  }
+}
+
+async function doLogin() {
+  $('loginErr').textContent = '';
+  try {
+    await fb.signInWithEmailAndPassword(fb.auth, $('loginEmail').value.trim(), $('loginPass').value);
+  } catch (err) {
+    $('loginErr').textContent =
+      /invalid-credential|wrong-password|user-not-found/.test(err.code || '')
+        ? 'Wrong email or password.'
+        : 'Sign-in failed: ' + (err.code || err.message);
+  }
+}
+
+function doSignOut() {
+  if (mode === 'firebase') fb.signOut(fb.auth);
+  else resetConnection();
+}
+
+function subscribe() {
+  if (unsubItems) unsubItems();
+  if (unsubTx) unsubTx();
+  unsubItems = fb.onSnapshot(
+    fb.query(fb.collection(fb.db, 'inventory'), fb.orderBy('name')),
+    (snap) => {
+      items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAll();
+    },
+    (err) => toast('Firestore error: ' + err.code)
+  );
+  unsubTx = fb.onSnapshot(
+    fb.query(fb.collection(fb.db, 'inventory_transactions'), fb.orderBy('at', 'desc'), fb.limit(15)),
+    (snap) => {
+      txs = snap.docs.map((d) => {
+        const x = d.data();
+        return { ...x, at: x.at?.toDate?.()?.toISOString() };
+      });
+      renderTx();
+    },
+    () => {} // index may not exist yet on brand-new projects; harmless
+  );
+}
+
+/* ── Demo mode (localStorage) ─────────────────────────────────────── */
+function demoLoad() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem('iw_demo_data') || 'null'); } catch {}
+  if (!s) {
+    s = { items: SAMPLE.map((x, i) => ({ id: String(i + 1), ...x })), txs: [], nextId: SAMPLE.length + 1 };
+    localStorage.setItem('iw_demo_data', JSON.stringify(s));
+  }
+  return s;
+}
+function demoSave(s) { localStorage.setItem('iw_demo_data', JSON.stringify(s)); }
+
+function startDemo() {
+  mode = 'demo';
+  localStorage.setItem('iw_demo', '1');
+  const s = demoLoad();
+  items = s.items; txs = s.txs;
+  show('appScreen');
+  $('modeBadge').textContent = '⚠ demo mode — data on this device only';
+  $('modeBadge').classList.remove('live');
+  $('subLine').textContent = 'Kitchen stock (demo)';
+  $('signOutBtn').textContent = 'exit demo';
+  renderAll(); renderTx();
+}
+
+/* ── Data operations (both modes) ─────────────────────────────────── */
+async function opCreate(data) {
+  if (mode === 'firebase') {
+    await fb.addDoc(fb.collection(fb.db, 'inventory'), { ...data, updatedAt: fb.serverTimestamp() });
+  } else {
+    const s = demoLoad();
+    s.items.push({ id: String(s.nextId++), ...data, updatedAt: new Date().toISOString() });
+    demoSave(s); items = s.items; renderAll();
+  }
+}
+
+async function opUpdate(id, data) {
+  if (mode === 'firebase') {
+    await fb.updateDoc(fb.doc(fb.db, 'inventory', id), { ...data, updatedAt: fb.serverTimestamp() });
+  } else {
+    const s = demoLoad();
+    const i = s.items.findIndex((x) => x.id === id);
+    if (i >= 0) s.items[i] = { ...s.items[i], ...data, updatedAt: new Date().toISOString() };
+    demoSave(s); items = s.items; renderAll();
+  }
+}
+
+async function opDelete(id) {
+  if (mode === 'firebase') {
+    await fb.deleteDoc(fb.doc(fb.db, 'inventory', id));
+  } else {
+    const s = demoLoad();
+    s.items = s.items.filter((x) => x.id !== id);
+    demoSave(s); items = s.items; renderAll();
+  }
+}
+
+async function opAdjust(id, delta, note) {
+  if (mode === 'firebase') {
+    await fb.runTransaction(fb.db, async (t) => {
+      const ref = fb.doc(fb.db, 'inventory', id);
+      const snap = await t.get(ref);
+      if (!snap.exists()) throw new Error('Item not found');
+      const item = snap.data();
+      const quantityAfter = Math.max(0, round3(Number(item.quantity) + delta));
+      t.update(ref, { quantity: quantityAfter, updatedAt: fb.serverTimestamp() });
+      t.set(fb.doc(fb.collection(fb.db, 'inventory_transactions')), {
+        itemId: id, itemName: item.name, delta, note,
+        quantityAfter, at: fb.serverTimestamp(),
+      });
+    });
+  } else {
+    const s = demoLoad();
+    const item = s.items.find((x) => x.id === id);
+    if (!item) return;
+    item.quantity = Math.max(0, round3(Number(item.quantity) + delta));
+    item.updatedAt = new Date().toISOString();
+    s.txs.unshift({ itemId: id, itemName: item.name, delta, note, quantityAfter: item.quantity, at: new Date().toISOString() });
+    s.txs = s.txs.slice(0, 30);
+    demoSave(s); items = s.items; txs = s.txs;
+    renderAll(); renderTx();
+  }
+}
+
+/* ── Rendering ────────────────────────────────────────────────────── */
+const isLow = (i) => Number(i.quantity) <= Number(i.reorderLevel);
+
+function renderAll() {
+  $('stTotal').textContent = items.length;
+  $('stLow').textContent = items.filter(isLow).length;
+  $('stValue').textContent = '₹' + fmt(Math.round(items.reduce((s, i) => s + i.quantity * (i.unitCost || 0), 0)));
+  $('stCats').textContent = new Set(items.map((i) => i.category)).size;
+
+  const cats = [...new Set(items.map((i) => i.category))].sort();
+  const sel = $('catFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All categories</option>' + cats.map((c) => `<option>${esc(c)}</option>`).join('');
+  sel.value = cur;
+  $('catList').innerHTML = cats.map((c) => `<option value="${esc(c)}">`).join('');
+
+  renderTable();
+}
+
+function renderTable() {
+  const q = $('search').value.toLowerCase();
+  const cat = $('catFilter').value;
+  const lowOnly = $('stockFilter').value === 'low';
+  const rows = items
+    .filter((i) =>
+      (!q || i.name.toLowerCase().includes(q) || (i.supplier || '').toLowerCase().includes(q)) &&
+      (!cat || i.category === cat) && (!lowOnly || isLow(i)))
+    .sort((a, b) => (isLow(b) - isLow(a)) || a.name.localeCompare(b.name));
+
+  $('emptyMsg').classList.toggle('hidden', !!rows.length);
+  $('tbody').innerHTML = rows.map((i) => `
+    <tr>
+      <td><div class="itemname">${esc(i.name)}</div><div class="itemsub">${esc(i.supplier || '')}</div></td>
+      <td>${esc(i.category)}</td>
+      <td class="num"><b>${fmt(i.quantity)}</b> ${esc(i.unit)}</td>
+      <td class="num">${fmt(i.reorderLevel)} ${esc(i.unit)}</td>
+      <td class="num">₹${fmt(Math.round(i.quantity * (i.unitCost || 0)))}</td>
+      <td><span class="badge ${isLow(i) ? 'low' : 'ok'}">${isLow(i) ? 'LOW — reorder' : 'In stock'}</span></td>
+      <td class="num">
+        <button class="rowbtn" title="Stock in" onclick="openAdjust('${i.id}', 1)">＋</button>
+        <button class="rowbtn" title="Stock out" onclick="openAdjust('${i.id}', -1)">－</button>
+        <button class="rowbtn" title="Edit" onclick="openItemModal('${i.id}')">✎</button>
+        <button class="rowbtn danger" title="Delete" onclick="removeItem('${i.id}')">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+function renderTx() {
+  if (!txs.length) { $('txList').innerHTML = '<div class="empty">No stock movements yet.</div>'; return; }
+  $('txList').innerHTML = txs.map((t) => `
+    <div class="tx">
+      <span class="d ${t.delta > 0 ? 'in' : 'out'}">${t.delta > 0 ? '+' : ''}${fmt(t.delta)}</span>
+      ${esc(t.itemName)} → ${fmt(t.quantityAfter)} left
+      <div class="meta">${esc(t.note || '')} ${t.at ? '· ' + new Date(t.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}</div>
+    </div>`).join('');
+}
+
+/* ── Modals & actions ─────────────────────────────────────────────── */
+function openItemModal(id) {
+  editingId = id || null;
+  const i = id ? items.find((x) => x.id === id) : null;
+  $('itemModalTitle').textContent = i ? 'Edit item' : 'Add item';
+  $('fName').value = i?.name || '';
+  $('fCategory').value = i?.category || '';
+  $('fQuantity').value = i?.quantity ?? 0;
+  $('fUnit').value = i?.unit || '';
+  $('fReorder').value = i?.reorderLevel ?? 0;
+  $('fCost').value = i?.unitCost ?? 0;
+  $('fSupplier').value = i?.supplier || '';
+  $('itemOverlay').classList.add('open');
+  $('fName').focus();
+}
+
+async function saveItem() {
+  const body = {
+    name: $('fName').value.trim(), category: $('fCategory').value.trim(), unit: $('fUnit').value.trim(),
+    quantity: Math.max(0, Number($('fQuantity').value) || 0),
+    reorderLevel: Math.max(0, Number($('fReorder').value) || 0),
+    unitCost: Math.max(0, Number($('fCost').value) || 0),
+    supplier: $('fSupplier').value.trim(),
+  };
+  if (!body.name || !body.category || !body.unit) return toast('Name, category and unit are required');
+  try {
+    if (editingId) await opUpdate(editingId, body); else await opCreate(body);
+    closeModals(); toast(editingId ? 'Item updated' : 'Item added');
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+async function removeItem(id) {
+  const i = items.find((x) => x.id === id);
+  if (!confirm(`Delete "${i?.name}" from inventory?`)) return;
+  try { await opDelete(id); toast('Item deleted'); } catch (e) { toast('Error: ' + e.message); }
+}
+
+function openAdjust(id, direction) {
+  adjusting = { id, direction };
+  const i = items.find((x) => x.id === id);
+  $('adjTitle').textContent = (direction > 0 ? 'Stock in — ' : 'Stock out — ') + i.name + ` (${i.unit})`;
+  $('adjAmount').value = '';
+  $('adjNote').value = direction > 0 ? 'delivery' : 'kitchen use';
+  $('adjOverlay').classList.add('open');
+  $('adjAmount').focus();
+}
+
+async function saveAdjust() {
+  const amt = Number($('adjAmount').value);
+  if (!amt || amt <= 0) return toast('Enter a valid amount');
+  try {
+    await opAdjust(adjusting.id, amt * adjusting.direction, $('adjNote').value.trim());
+    closeModals(); toast('Stock updated');
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+function closeModals() { document.querySelectorAll('.overlay').forEach((o) => o.classList.remove('open')); }
+document.querySelectorAll('.overlay').forEach((o) => o.addEventListener('click', (e) => { if (e.target === o) closeModals(); }));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModals(); });
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+$('search').addEventListener('input', renderTable);
+$('catFilter').addEventListener('change', renderTable);
+$('stockFilter').addEventListener('change', renderTable);
+$('loginPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>
